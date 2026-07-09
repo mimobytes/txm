@@ -76,16 +76,14 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
             RenderNode::infix(&lhs, op_char, &rhs)
         }
 
-        Expr::Escape(s) => {
-            match s.as_str() {
-                " " => RenderNode::new(4, 1, 0),
-                "," => RenderNode::new(1, 1, 0),
-                ":" => RenderNode::new(2, 1, 0),
-                ";" => RenderNode::new(3, 1, 0),
-                "!" => RenderNode::new(0, 1, 0),
-                _ => RenderNode::from_str(s),
-            }
-        }
+        Expr::Escape(s) => match s.as_str() {
+            " " => RenderNode::new(4, 1, 0),
+            "," => RenderNode::new(1, 1, 0),
+            ":" => RenderNode::new(2, 1, 0),
+            ";" => RenderNode::new(3, 1, 0),
+            "!" => RenderNode::new(0, 1, 0),
+            _ => RenderNode::from_str(s),
+        },
 
         Expr::Juxtapose(exprs) => {
             let nodes: Vec<RenderNode> = exprs.iter().map(|e| render(e, reg, ctx)).collect();
@@ -93,6 +91,30 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
         }
 
         Expr::Empty => RenderNode::new(0, 0, 0),
+
+        // optimize this?
+        Expr::Matrix { name, rows } => {
+            if rows.is_empty() {
+                return RenderNode::new(0, 0, 0);
+            }
+
+            let mut rendered_rows: Vec<Vec<RenderNode>> = Vec::new();
+
+            let num_cols = rows[0].len();
+            for row in rows {
+                assert!(row.len() == num_cols);
+
+                let mut rendered_row: Vec<RenderNode> = Vec::new();
+                for item in row {
+                    let rendered_item = render(item, reg, ctx);
+                    rendered_row.push(rendered_item);
+                }
+
+                rendered_rows.push(rendered_row);
+            }
+
+            RenderNode::matrix(name, &rendered_rows)
+        }
     }
 }
 

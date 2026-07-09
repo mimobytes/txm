@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::layout::RenderNode;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct RenderCtx {
     pub depth: usize,
 }

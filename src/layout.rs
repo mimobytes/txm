@@ -38,15 +38,15 @@ impl RenderNode {
         }
     }
 
-    pub fn blit_into(&self, target: &mut [char], tw: usize, x: usize, y: usize) {
+    pub fn blit_into(&self, target: &mut [char], target_width: usize, x: usize, y: usize) {
         for row in 0..self.height {
-            if y + row >= target.len() / tw {
+            if y + row >= target.len() / target_width {
                 break;
             }
 
             let src_start = row * self.width;
             let src_end = src_start + self.width;
-            let dst_start = (y + row) * tw + x;
+            let dst_start = (y + row) * target_width + x;
 
             if dst_start + self.width <= target.len() {
                 target[dst_start..dst_start + self.width]
@@ -350,6 +350,54 @@ impl RenderNode {
             baseline: upper.height + base.baseline,
             data,
         }
+    }
+
+    pub fn matrix(name: &str, rendered_rows: &[Vec<RenderNode>]) -> RenderNode {
+        let (left_delim, right_delim) = match name {
+            "matrix" => ('(', ')'),
+            "bmatrix" => ('[', ']'),
+            "pmatrix" => ('{', '}'),
+            _ => panic!("invalid matrix type: {name}"),
+        };
+
+        let num_rows = rendered_rows.len();
+        let num_cols = rendered_rows[0].len();
+
+        let mut max_item_width = 0;
+        let mut max_item_height = 0;
+
+        for row in rendered_rows {
+            for item in row {
+                max_item_height = max_item_height.max(item.height);
+                max_item_width = max_item_width.max(item.width);
+            }
+        }
+
+        let spacing = 1;
+        let matrix_layout_height = num_rows * max_item_height;
+        let matrix_layout_width = num_cols * max_item_width + (num_cols - 1) * spacing;
+        let baseline = num_rows / 2;
+
+        let mut data = vec![' '; matrix_layout_height * matrix_layout_width];
+        for (i, row) in rendered_rows.iter().enumerate() {
+            for (j, item) in row.iter().enumerate() {
+                item.blit_into(
+                    &mut data,
+                    matrix_layout_width,
+                    j * (max_item_width + spacing),
+                    i * max_item_height,
+                );
+            }
+        }
+
+        let matrix = Self {
+            width: matrix_layout_width,
+            height: matrix_layout_height,
+            baseline,
+            data,
+        };
+
+        RenderNode::stretchy_delim(&matrix, left_delim, right_delim)
     }
 }
 
