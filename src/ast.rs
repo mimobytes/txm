@@ -6,7 +6,11 @@ pub enum Expr {
     Parens(Box<Expr>),
     Brackets(Box<Expr>),
     Neg(Box<Expr>),
-    Command { name: String, args: Vec<Expr> },
+    Command {
+        name: String,
+        opts: Vec<Expr>,
+        args: Vec<Expr>,
+    },
     Superscript(Box<Expr>, Box<Expr>),
     Subscript(Box<Expr>, Box<Expr>),
     BothScripts(Box<Expr>, Box<Expr>, Box<Expr>),

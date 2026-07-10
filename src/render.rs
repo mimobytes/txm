@@ -26,13 +26,15 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
             result
         }
 
-        Expr::Command { name, args } => {
+        Expr::Command { name, opts, args } => {
             if let Some(glyph) = reg.get(name) {
                 ctx.depth += 1;
+                let rendered_opts: Vec<RenderNode> =
+                    opts.iter().map(|a| render(a, reg, ctx)).collect();
                 let rendered_args: Vec<RenderNode> =
                     args.iter().map(|a| render(a, reg, ctx)).collect();
                 ctx.depth -= 1;
-                glyph.render(&rendered_args, &[], ctx)
+                glyph.render(&rendered_args, &rendered_opts, ctx)
             } else {
                 eprintln!("DEBUG glyph NOT FOUND: {}", name);
                 RenderNode::from_str(name)
@@ -151,7 +153,7 @@ fn render_power(
     ctx: &mut RenderCtx,
 ) -> RenderNode {
     if crate::COMPACT_SIMPLE_FRACTIONAL_EXPONENTS
-        && let Expr::Command { name, args } = exp
+        && let Expr::Command { name, args, .. } = exp
         && name == "frac"
         && args.len() == 2
         && let (Expr::Number(n), Expr::Number(d)) = (&args[0], &args[1])
@@ -163,4 +165,30 @@ fn render_power(
 
     let rendered_exp = render(exp, reg, ctx);
     RenderNode::superscript(&base, &rendered_exp)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::render;
+    use crate::glyph::{RenderCtx, SqrtGlyph, SymbolRegistry};
+    use crate::parser::Parser;
+    use crate::token::tokenize;
+
+    #[test]
+    fn sqrt_optional_index_keeps_radicand() {
+        let mut registry = SymbolRegistry::new();
+        registry.register("sqrt", SqrtGlyph);
+        let tokens = tokenize(r"\sqrt[3]{8}");
+        let expr = Parser::new(&tokens, &registry).parse_expr().unwrap();
+        let node = render(&expr, &registry, &mut RenderCtx::default());
+        let rows: Vec<String> = node
+            .data
+            .chunks(node.width)
+            .map(|row| row.iter().collect())
+            .collect();
+        let index_row = rows.iter().position(|row| row.contains('3')).unwrap();
+        let radicand_row = rows.iter().position(|row| row.contains('8')).unwrap();
+
+        assert!(index_row < radicand_row);
+    }
 }
