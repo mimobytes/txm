@@ -230,7 +230,8 @@ impl RenderNode {
         Self::hstack(&[base.clone(), p], 0)
     }
 
-    pub fn stretchy_delim(inner: &Self, left: char, right: char) -> Self {
+    /// If fill is true, the middle line will also use left and right chars
+    pub fn stretchy_delim(inner: &Self, left: char, right: char, fill: bool) -> Self {
         // one-liner expressions
         if inner.height <= 1 {
             let mut result = Self::new(inner.width + 2, 1, 0);
@@ -251,6 +252,7 @@ impl RenderNode {
             ('(', ')') => ('⎛', '⎞', '⎝', '⎠', '⎟', '⎟'),
             ('[', ']') => ('⎡', '⎤', '⎣', '⎦', '⎢', '⎢'),
             ('{', '}') => ('⎧', '⎫', '⎩', '⎭', '⎪', '⎪'),
+            _ if fill => (left, right, left, right, left, right),
             _ => (left, right, left, right, '│', '│'),
         };
 
@@ -354,9 +356,9 @@ impl RenderNode {
 
     pub fn matrix(name: &str, rendered_rows: &[Vec<RenderNode>]) -> RenderNode {
         let (left_delim, right_delim) = match name {
-            "matrix" => ('(', ')'),
+            "matrix" => (' ', ' '),
             "bmatrix" => ('[', ']'),
-            "pmatrix" => ('{', '}'),
+            "pmatrix" => ('(', ')'),
             _ => panic!("invalid matrix type: {name}"),
         };
 
@@ -397,7 +399,7 @@ impl RenderNode {
             data,
         };
 
-        RenderNode::stretchy_delim(&matrix, left_delim, right_delim)
+        RenderNode::stretchy_delim(&matrix, left_delim, right_delim, true)
     }
 }
 

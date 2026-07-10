@@ -12,12 +12,12 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
 
         Expr::Parens(inner) => {
             let inner = render(inner, reg, ctx);
-            RenderNode::stretchy_delim(&inner, '(', ')')
+            RenderNode::stretchy_delim(&inner, '(', ')', false)
         }
 
         Expr::Brackets(inner) => {
             let inner = render(inner, reg, ctx);
-            RenderNode::stretchy_delim(&inner, '[', ']')
+            RenderNode::stretchy_delim(&inner, '[', ']', false)
         }
 
         Expr::Neg(inner) => {
