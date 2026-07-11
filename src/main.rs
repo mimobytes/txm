@@ -104,14 +104,14 @@ fn help(program: &str, flags: &[Flag]) -> String {
     format!(
         "Usage: {program} [OPTIONS] [EXPRESSION]
 
-Terminal math renderer - renders LaTeX math expressions in your terminal.
+Terminal Math Rendering Engine - renders LaTeX math expressions in your terminal.
 
 OPTIONS:
 {opts}
 
 EXAMPLES:
   {program} \"E = mc^2\"
-  {program} --unboxed \"\\sum_{{n=1}}^{{\\infty}} \\frac{{1}}{{n^2}}\"
+  {program}  \"\\lim_{{x\\,\\to\\,\\infty}}\\,\\int_0^x{{\\frac{{\\sin\\, t^2}}{{1 + t^4}}}}\\, dt = L\"
 "
     )
 }
