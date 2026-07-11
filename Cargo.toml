@@ -10,5 +10,10 @@ readme = "README.md"
 
 [dependencies]
 logos = "0.16"
+ratatui-core = { version = "0.1", optional = true }
 thiserror = "2"
 unicode-width = "0.2"
+
+[features]
+default = []
+ratatui = ["dep:ratatui-core"]

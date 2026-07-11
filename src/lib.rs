@@ -19,6 +19,9 @@ mod token;
 
 pub use error::ParseError;
 
+#[cfg(feature = "ratatui")]
+pub mod ratatui;
+
 const UNIFORM_FRACTION_HEIGHT: bool = false;
 const COMPACT_SIMPLE_FRACTIONAL_EXPONENTS: bool = false;
 
