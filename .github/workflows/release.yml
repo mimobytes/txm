@@ -1,0 +1,117 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v[0-9]+.*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      # ── Linux builds (native Nix, pure) ──────────────────────────────
+
+      - name: Build x86_64-linux
+        run: |
+          nix build .#x86_64-linux
+          cp result/bin/txm txm-x86_64-linux
+
+      - name: Build aarch64-linux
+        run: |
+          nix build .#aarch64-linux
+          cp result/bin/txm txm-aarch64-linux
+
+      # ── Cross-OS builds (cargo-zigbuild + rust-overlay, pure) ────────
+
+      - name: Build x86_64-darwin
+        run: |
+          nix build .#x86_64-darwin
+          cp result/bin/txm txm-x86_64-macos
+
+      - name: Build aarch64-darwin
+        run: |
+          nix build .#aarch64-darwin
+          cp result/bin/txm txm-aarch64-macos
+
+      - name: Build x86_64-windows
+        run: |
+          nix build .#x86_64-windows
+          cp result/bin/txm.exe txm-x86_64-windows
+
+      # ── Upload all binaries as a single artifact ────────────────────
+
+      - name: Upload binaries
+        uses: actions/upload-artifact@v7
+        with:
+          name: txm-binaries
+          path: |
+            txm-x86_64-linux
+            txm-aarch64-linux
+            txm-x86_64-macos
+            txm-aarch64-macos
+            txm-x86_64-windows
+          if-no-files-found: error
+
+  create-release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: txm-binaries
+          path: artifacts
+
+      - name: Package release archives
+        shell: bash
+        run: |
+          set -eux
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p dist/
+
+          # Linux and macOS — tar.gz
+          for plat in x86_64-linux aarch64-linux x86_64-macos aarch64-macos; do
+            dir="txm-$VERSION-$plat"
+            mkdir "$dir"
+            cp "artifacts/txm-$plat" "$dir/txm"
+            chmod +x "$dir/txm"
+            tar czf "dist/$dir.tar.gz" "$dir"
+          done
+
+          # Windows — zip (inside: txm.exe)
+          dir="txm-$VERSION-x86_64-windows"
+          mkdir "$dir"
+          cp artifacts/txm-x86_64-windows "$dir/txm.exe"
+          7z a "dist/$dir.zip" "$dir"
+
+          cd dist
+          sha256sum *.tar.gz *.zip > SHA256SUMS
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v3
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
+          files: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS
+          generate_release_notes: true
