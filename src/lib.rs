@@ -9,27 +9,31 @@ use crate::token::tokenize;
 use std::sync::OnceLock;
 
 mod ast;
+mod error;
 mod glyph;
 mod layout;
 mod parser;
 mod render;
 mod token;
 
+pub use error::ParseError;
+
 const UNIFORM_FRACTION_HEIGHT: bool = false;
 const COMPACT_SIMPLE_FRACTIONAL_EXPONENTS: bool = false;
 
 /// Renders a math expression to plain text lines.
 ///
-/// The returned string is newline-terminated and contains one line per
-/// rendered row.
-pub fn render(input: &str) -> String {
-    let tokens = tokenize(input);
+/// On success, the returned string is newline-terminated and contains one line
+/// per rendered row. Returns `ParseError` for lexer, parser, or render errors.
+pub fn render(input: &str) -> Result<String, ParseError> {
+    let tokens = tokenize(input)?;
     let reg = registry();
     let mut parser = Parser::new(&tokens, reg);
-    let expr = parser.parse_expr().unwrap();
+    let expr = parser.parse_expr()?;
     let mut ctx = RenderCtx::default();
-    let layout = render_expr(&expr, reg, &mut ctx);
-    layout.to_string()
+    let layout = render_expr(&expr, reg, &mut ctx)?;
+
+    Ok(layout.to_string())
 }
 
 fn registry() -> &'static SymbolRegistry {

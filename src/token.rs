@@ -1,5 +1,7 @@
 use logos::Logos;
 
+use crate::error::ParseError;
+
 #[derive(Logos, Debug, Clone, PartialEq)]
 pub enum Token {
     #[token("{")]
@@ -67,6 +69,9 @@ pub enum Token {
     Whitespace,
 }
 
-pub fn tokenize(input: &str) -> Vec<Token> {
-    Token::lexer(input).filter_map(|t| t.ok()).collect()
+pub fn tokenize(input: &str) -> Result<Vec<Token>, ParseError> {
+    Token::lexer(input)
+        .spanned()
+        .map(|(i, span)| i.map_err(|_| ParseError::from_range(span)))
+        .collect()
 }

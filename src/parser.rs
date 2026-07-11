@@ -1,21 +1,7 @@
-use std::error::Error;
-use std::fmt;
-
+use crate::ParseError;
 use crate::ast::*;
 use crate::glyph::SymbolRegistry;
 use crate::token::Token;
-
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-#[allow(dead_code)]
-pub struct ParseError(pub String);
-
-impl fmt::Display for ParseError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(&self.0)
-    }
-}
-
-impl Error for ParseError {}
 
 pub struct Parser<'a> {
     tokens: &'a [Token],
@@ -42,21 +28,13 @@ impl<'a> Parser<'a> {
         t
     }
 
-    fn expect(&mut self, tok: Token) -> Result<(), ParseError> {
-        match self.peek().cloned() {
-            Some(actual) if actual == tok => {
-                self.advance();
-                Ok(())
-            }
-            Some(actual) => Err(ParseError(format!(
-                "Parse error: expected {:?}, got {:?}",
-                tok, actual
-            ))),
-            None => Err(ParseError(format!(
-                "Parse error: expected {:?}, got end of input",
-                tok
-            ))),
-        }
+    fn expect(&mut self, tok: Token) {
+        let actual = self.advance();
+        assert_eq!(
+            actual, tok,
+            "Parse error: expected {:?}, got {:?}",
+            tok, actual
+        );
     }
 
     pub fn parse_expr(&mut self) -> Result<Expr, ParseError> {
@@ -169,7 +147,7 @@ impl<'a> Parser<'a> {
         // has_limits = true and if the next symbol after parsing scripts
         // was LBrace, it is an argument
 
-        let mut result = if let Expr::Command { name, args, .. } = &base
+        let mut result = if let Expr::Command { name, opts: _, args } = &base
             && let Some(glyph) = self.registry.get(name)
             && glyph.has_limits()
             && self.peek() == Some(&Token::LBrace)
@@ -177,12 +155,14 @@ impl<'a> Parser<'a> {
         {
             // move
             let Expr::Command { name, mut args, .. } = base else {
-                unreachable!()
+                return Err(ParseError(
+                    "internal parser error: limits argument base was not a command".into(),
+                ));
             };
 
             self.advance(); // eat {
             let body = self.parse_expr()?;
-            self.expect(Token::RBrace)?;
+            self.expect(Token::RBrace);
             args.push(body);
 
             Expr::Command {
@@ -221,19 +201,19 @@ impl<'a> Parser<'a> {
             Some(Token::LBrace) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RBrace)?;
+                self.expect(Token::RBrace);
                 Ok(Expr::Group(Box::new(inner)))
             }
             Some(Token::LParen) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RParen)?;
+                self.expect(Token::RParen);
                 Ok(Expr::Parens(Box::new(inner)))
             }
             Some(Token::LBracket) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::RBracket)?;
+                self.expect(Token::RBracket);
                 Ok(Expr::Brackets(Box::new(inner)))
             }
             Some(Token::Command(name)) => {
@@ -253,10 +233,10 @@ impl<'a> Parser<'a> {
             Some(Token::Pipe) => {
                 self.advance();
                 let inner = self.parse_expr()?;
-                self.expect(Token::Pipe)?;
+                self.expect(Token::Pipe);
                 Ok(Expr::Command {
                     name: "|".into(),
-                    opts: Vec::new(),
+                    opts: vec![],
                     args: vec![inner],
                 })
             }
@@ -296,15 +276,15 @@ impl<'a> Parser<'a> {
         if has_opt && self.peek() == Some(&Token::LBracket) {
             self.advance();
             let opt = self.parse_expr()?;
-            self.expect(Token::RBracket)?;
+            self.expect(Token::RBracket);
             opts.push(opt);
         }
 
         if !has_limits {
             for _ in 0..n_req {
-                self.expect(Token::LBrace)?;
+                self.expect(Token::LBrace);
                 let arg = self.parse_expr()?;
-                self.expect(Token::RBrace)?;
+                self.expect(Token::RBrace);
                 args.push(arg);
             }
         }
@@ -317,7 +297,7 @@ impl<'a> Parser<'a> {
     }
 
     fn parse_begin(&mut self) -> Result<Expr, ParseError> {
-        self.expect(Token::LBrace)?;
+        self.expect(Token::LBrace);
         let env_name = match self.peek() {
             Some(Token::Ident(name)) => {
                 let name = name.clone();
@@ -330,7 +310,12 @@ impl<'a> Parser<'a> {
                 ));
             }
         };
-        self.expect(Token::RBrace)?;
+
+        self.expect(Token::RBrace);
+
+        if !matches!(env_name.as_str(), "matrix" | "bmatrix" | "pmatrix") {
+            return Err(ParseError(format!("unknown matrix environment: {env_name}")));
+        }
 
         let body_start = self.pos;
         let mut depth = 0u32;
@@ -358,7 +343,7 @@ impl<'a> Parser<'a> {
         let rows = self.parse_matrix_body(body)?;
 
         self.advance();
-        self.expect(Token::LBrace)?;
+        self.expect(Token::LBrace);
         let end_name = match self.peek() {
             Some(Token::Ident(name)) => {
                 let name = name.clone();
@@ -373,7 +358,7 @@ impl<'a> Parser<'a> {
                 env_name, end_name
             )));
         }
-        self.expect(Token::RBrace)?;
+        self.expect(Token::RBrace);
 
         Ok(Expr::Matrix {
             name: env_name,

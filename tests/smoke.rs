@@ -57,7 +57,41 @@ fn boxes_adjacent_wide_identifiers() {
 
 #[test]
 fn render_returns_raw_lines_for_simple_identifier() {
-    let rendered = txm::render("x");
+    let rendered = txm::render("x").expect("render failed");
 
     assert_eq!(rendered, "x\n");
+}
+
+#[test]
+fn render_returns_error_for_unclosed_group() {
+    assert!(txm::render("{x").is_err());
+}
+
+#[test]
+fn render_returns_error_for_invalid_lexer_input() {
+    assert!(txm::render("@").is_err());
+}
+
+#[test]
+fn render_returns_error_for_unknown_matrix_environment() {
+    assert!(txm::render(r"\begin{unknown}x\end{unknown}").is_err());
+}
+
+#[test]
+fn render_returns_error_for_ragged_matrix() {
+    assert!(txm::render(r"\begin{matrix}a&b\\c\end{matrix}").is_err());
+}
+
+#[test]
+fn cli_reports_render_errors_without_panicking() {
+    let output = Command::new(env!("CARGO_BIN_EXE_txm"))
+        .arg(r"\begin{unknown}x\end{unknown}")
+        .output()
+        .expect("failed to run txm");
+
+    assert!(!output.status.success());
+    assert_eq!(
+        String::from_utf8_lossy(&output.stderr),
+        "error: unknown matrix environment: unknown\n"
+    );
 }

@@ -1,42 +1,56 @@
 use crate::ast::*;
 use crate::glyph::{RenderCtx, SymbolRegistry};
 use crate::layout::RenderNode;
+use crate::error::ParseError;
 
-pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderNode {
+pub fn render(
+    expr: &Expr,
+    reg: &SymbolRegistry,
+    ctx: &mut RenderCtx,
+) -> Result<RenderNode, ParseError> {
     match expr {
-        Expr::Ident(s) | Expr::Number(s) => RenderNode::from_str(s),
+        Expr::Ident(s) | Expr::Number(s) => Ok(RenderNode::from_str(s)),
 
         Expr::Group(inner) => render(inner, reg, ctx),
 
         Expr::Parens(inner) => {
-            let inner = render(inner, reg, ctx);
-            RenderNode::stretchy_delim(&inner, '(', ')', false)
+            let inner = render(inner, reg, ctx)?;
+            Ok(RenderNode::stretchy_delim(&inner, '(', ')', false))
         }
 
         Expr::Brackets(inner) => {
-            let inner = render(inner, reg, ctx);
-            RenderNode::stretchy_delim(&inner, '[', ']', false)
+            let inner = render(inner, reg, ctx)?;
+            Ok(RenderNode::stretchy_delim(&inner, '[', ']', false))
         }
 
         Expr::Neg(inner) => {
-            let inner = render(inner, reg, ctx);
+            let inner = render(inner, reg, ctx)?;
             let mut result = RenderNode::new(inner.width + 1, inner.height, inner.baseline);
             result.data[inner.baseline * result.width] = '-';
             inner.blit_into(&mut result.data, result.width, 1, 0);
-            result
+            Ok(result)
         }
 
         Expr::Command { name, opts, args } => {
             if let Some(glyph) = reg.get(name) {
-                ctx.depth += 1;
-                let rendered_opts: Vec<RenderNode> =
-                    opts.iter().map(|a| render(a, reg, ctx)).collect();
-                let rendered_args: Vec<RenderNode> =
-                    args.iter().map(|a| render(a, reg, ctx)).collect();
-                ctx.depth -= 1;
-                glyph.render(&rendered_args, &rendered_opts, ctx)
+                let (rendered_opts, rendered_args) = {
+                    ctx.depth += 1;
+                    let rendered = (|| {
+                        Ok((
+                            opts.iter()
+                                .map(|a| render(a, reg, ctx))
+                                .collect::<Result<Vec<_>, _>>()?,
+                            args.iter()
+                                .map(|a| render(a, reg, ctx))
+                                .collect::<Result<Vec<_>, _>>()?,
+                        ))
+                    })();
+                    ctx.depth -= 1;
+                    rendered?
+                };
+                Ok(glyph.render(&rendered_args, &rendered_opts, ctx))
             } else {
-                RenderNode::from_str(name)
+                Ok(RenderNode::from_str(name))
             }
         }
 
@@ -45,12 +59,16 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
                 && let Some(glyph) = reg.get(name)
                 && glyph.has_limits()
             {
-                let base_r = render(base, reg, ctx);
-                let sup_r = render(sup, reg, ctx);
-                return RenderNode::limits(&base_r, &RenderNode::new(0, 0, 0), &sup_r);
+                let base_r = render(base, reg, ctx)?;
+                let sup_r = render(sup, reg, ctx)?;
+                return Ok(RenderNode::limits(
+                    &base_r,
+                    &RenderNode::new(0, 0, 0),
+                    &sup_r,
+                ));
             }
 
-            let base = render(base, reg, ctx);
+            let base = render(base, reg, ctx)?;
             render_power(base, sup, reg, ctx)
         }
 
@@ -59,14 +77,18 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
                 && let Some(glyph) = reg.get(name)
                 && glyph.has_limits()
             {
-                let base_r = render(base, reg, ctx);
-                let sub_r = render(sub, reg, ctx);
-                return RenderNode::limits(&base_r, &sub_r, &RenderNode::new(0, 0, 0));
+                let base_r = render(base, reg, ctx)?;
+                let sub_r = render(sub, reg, ctx)?;
+                return Ok(RenderNode::limits(
+                    &base_r,
+                    &sub_r,
+                    &RenderNode::new(0, 0, 0),
+                ));
             }
 
-            let base = render(base, reg, ctx);
-            let sub = render(sub, reg, ctx);
-            RenderNode::subscript(&base, &sub)
+            let base = render(base, reg, ctx)?;
+            let sub = render(sub, reg, ctx)?;
+            Ok(RenderNode::subscript(&base, &sub))
         }
 
         Expr::BothScripts(base, sub, sup) => {
@@ -74,66 +96,75 @@ pub fn render(expr: &Expr, reg: &SymbolRegistry, ctx: &mut RenderCtx) -> RenderN
                 && let Some(glyph) = reg.get(name)
                 && glyph.has_limits()
             {
-                let base_r = render(base, reg, ctx);
-                let sub_r = render(sub, reg, ctx);
-                let sup_r = render(sup, reg, ctx);
-                return RenderNode::limits(&base_r, &sub_r, &sup_r);
+                let base_r = render(base, reg, ctx)?;
+                let sub_r = render(sub, reg, ctx)?;
+                let sup_r = render(sup, reg, ctx)?;
+                return Ok(RenderNode::limits(&base_r, &sub_r, &sup_r));
             }
 
-            let base_rendered = render(base, reg, ctx);
-            let sub_rendered = render(sub, reg, ctx);
-            let sup_rendered = render(sup, reg, ctx);
-            RenderNode::both_scripts(&base_rendered, &sub_rendered, &sup_rendered)
+            let base_rendered = render(base, reg, ctx)?;
+            let sub_rendered = render(sub, reg, ctx)?;
+            let sup_rendered = render(sup, reg, ctx)?;
+            Ok(RenderNode::both_scripts(
+                &base_rendered,
+                &sub_rendered,
+                &sup_rendered,
+            ))
         }
 
         Expr::Prime(base, n) => {
-            let base = render(base, reg, ctx);
-            RenderNode::prime_suffix(&base, *n)
+            let base = render(base, reg, ctx)?;
+            Ok(RenderNode::prime_suffix(&base, *n))
         }
 
         Expr::BinOp(lhs, op, rhs) => {
-            let lhs = render(lhs, reg, ctx);
-            let rhs = render(rhs, reg, ctx);
+            let lhs = render(lhs, reg, ctx)?;
+            let rhs = render(rhs, reg, ctx)?;
             let op_char = match op {
                 BinOp::Add => '+',
                 BinOp::Sub => '-',
                 BinOp::Eq => '=',
                 BinOp::Mul => '·',
             };
-            RenderNode::infix(&lhs, op_char, &rhs)
+            Ok(RenderNode::infix(&lhs, op_char, &rhs))
         }
 
-        Expr::Escape(s) => match s.as_str() {
+        Expr::Escape(s) => Ok(match s.as_str() {
             " " => RenderNode::new(4, 1, 0),
             "," => RenderNode::new(1, 1, 0),
             ":" => RenderNode::new(2, 1, 0),
             ";" => RenderNode::new(3, 1, 0),
             "!" => RenderNode::new(0, 1, 0),
             _ => RenderNode::from_str(s),
-        },
+        }),
 
         Expr::Juxtapose(exprs) => {
-            let nodes: Vec<RenderNode> = exprs.iter().map(|e| render(e, reg, ctx)).collect();
-            RenderNode::hstack(&nodes, 0)
+            let nodes: Vec<RenderNode> = exprs
+                .iter()
+                .map(|e| render(e, reg, ctx))
+                .collect::<Result<_, _>>()?;
+            Ok(RenderNode::hstack(&nodes, 0))
         }
 
-        Expr::Empty => RenderNode::new(0, 0, 0),
+        Expr::Empty => Ok(RenderNode::new(0, 0, 0)),
 
         // optimize this?
         Expr::Matrix { name, rows } => {
             if rows.is_empty() {
-                return RenderNode::new(0, 0, 0);
+                return Ok(RenderNode::new(0, 0, 0));
             }
 
             let mut rendered_rows: Vec<Vec<RenderNode>> = Vec::new();
 
             let num_cols = rows[0].len();
             for row in rows {
-                assert!(row.len() == num_cols);
+                if row.len() != num_cols {
+                    return Err(ParseError("matrix rows have different lengths".into()));
+                }
 
                 let mut rendered_row: Vec<RenderNode> = Vec::new();
                 for item in row {
-                    let rendered_item = render(item, reg, ctx);
+                    let rendered_item = render(item, reg, ctx)?;
                     rendered_row.push(rendered_item);
                 }
 
@@ -150,7 +181,7 @@ fn render_power(
     exp: &Expr,
     reg: &SymbolRegistry,
     ctx: &mut RenderCtx,
-) -> RenderNode {
+) -> Result<RenderNode, ParseError> {
     if crate::COMPACT_SIMPLE_FRACTIONAL_EXPONENTS
         && let Expr::Command { name, args, .. } = exp
         && name == "frac"
@@ -159,11 +190,11 @@ fn render_power(
     {
         let exp_str = format!("{n}/{d}");
         let exp_node = RenderNode::from_str(&exp_str);
-        return RenderNode::superscript(&base, &exp_node);
+        return Ok(RenderNode::superscript(&base, &exp_node));
     }
 
-    let rendered_exp = render(exp, reg, ctx);
-    RenderNode::superscript(&base, &rendered_exp)
+    let rendered_exp = render(exp, reg, ctx)?;
+    Ok(RenderNode::superscript(&base, &rendered_exp))
 }
 
 #[cfg(test)]
@@ -177,9 +208,9 @@ mod tests {
     fn sqrt_optional_index_keeps_radicand() {
         let mut registry = SymbolRegistry::new();
         registry.register("sqrt", SqrtGlyph);
-        let tokens = tokenize(r"\sqrt[3]{8}");
+        let tokens = tokenize(r"\sqrt[3]{8}").unwrap();
         let expr = Parser::new(&tokens, &registry).parse_expr().unwrap();
-        let node = render(&expr, &registry, &mut RenderCtx::default());
+        let node = render(&expr, &registry, &mut RenderCtx::default()).unwrap();
         let rows: Vec<String> = node
             .data
             .chunks(node.width)
