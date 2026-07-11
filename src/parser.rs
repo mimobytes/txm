@@ -30,22 +30,15 @@ impl<'a> Parser<'a> {
 
     fn expect(&mut self, tok: Token) -> Result<(), ParseError> {
         match self.peek() {
-            None => {
-                return Err(ParseError(format!(
-                    "expected {:?} but reached end of input",
-                    tok
-                )));
-            }
+            None => Err(ParseError(format!(
+                "expected {:?} but reached end of input",
+                tok
+            ))),
             Some(actual) if *actual == tok => {
                 self.advance();
                 Ok(())
             }
-            Some(actual) => {
-                return Err(ParseError(format!(
-                    "expected {:?}, got {:?}",
-                    tok, actual
-                )));
-            }
+            Some(actual) => Err(ParseError(format!("expected {:?}, got {:?}", tok, actual))),
         }
     }
 
