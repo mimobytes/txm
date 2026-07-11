@@ -112,17 +112,21 @@ impl RenderNode {
             top.height + bottom.height
         } + 1;
 
-        let baseline = top.height;
         let mut data = vec![' '; w * h];
         let top_x = pad + (inner_w.saturating_sub(top.width)) / 2;
+        let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
+        let baseline = if uniform_height {
+            max_height
+        } else {
+            top.height
+        };
 
         if uniform_height {
-            let y = (max_height - top.height) / 2;
+            // let y = (max_height - top.height) / 2;
+            let y = baseline - top.height;
             top.blit_into(&mut data, w, top_x, y);
 
-            let y_shift = (max_height - bottom.height) / 2;
-            let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
-            bottom.blit_into(&mut data, w, bot_x, baseline + 1 + y_shift);
+            bottom.blit_into(&mut data, w, bot_x, baseline + 1);
         } else {
             top.blit_into(&mut data, w, top_x, 0);
             let bot_x = pad + (inner_w.saturating_sub(bottom.width)) / 2;
@@ -443,25 +447,26 @@ impl RenderNode {
     }
 
     pub fn limits(base: &Self, lower: &Self, upper: &Self) -> Self {
-        let inner_w = base.width.max(lower.width).max(upper.width);
-        let h = upper.height + base.height + lower.height;
-        let w = inner_w;
+        let max_h = upper.height.max(lower.height);
+        let w = base.width.max(lower.width).max(upper.width) + 1;
+        // let h = upper.height + base.height + lower.height;
+        let h = base.height + 2 * max_h;
 
         let mut data = vec![' '; w * h];
 
         // let ux = (w.saturating_sub(upper.width)) / 2;
-        upper.blit_into(&mut data, w, 0, 0);
+        upper.blit_into(&mut data, w, 0, max_h - upper.height);
 
-        let bx = (w.saturating_sub(base.width)) / 2;
-        base.blit_into(&mut data, w, bx, upper.height);
+        // let bx = (w.saturating_sub(base.width)) / 2;
+        base.blit_into(&mut data, w, 0, max_h);
 
         // let lx = (w.saturating_sub(lower.width)) / 2;
-        lower.blit_into(&mut data, w, 0, upper.height + base.height);
+        lower.blit_into(&mut data, w, 0, max_h + base.height);
 
         Self {
             width: w,
             height: h,
-            baseline: upper.height + base.baseline,
+            baseline: max_h + base.baseline,
             data,
         }
     }

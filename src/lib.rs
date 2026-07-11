@@ -1,7 +1,5 @@
 use crate::glyph::{
-    AbsGlyph, AccentGlyph, AlphabetGlyph, BinomGlyph, FracGlyph, IntegralGlyph, LimitGlyph,
-    RenderCtx, SqrtGlyph, SymbolRegistry, TextGlyph, UnicodeGlyph, to_bb, to_bold, to_italic,
-    to_sans, to_upright,
+    AbsGlyph, AccentGlyph, AlphabetGlyph, BinomGlyph, FracGlyph, IntegralGlyph, LimitGlyph, RenderCtx, SqrtGlyph, SummationGlyph, SymbolRegistry, TextGlyph, UnicodeGlyph, to_bb, to_bold, to_italic, to_sans, to_upright
 };
 use crate::parser::Parser;
 use crate::render::render as render_expr;
@@ -22,7 +20,7 @@ pub use error::ParseError;
 #[cfg(feature = "ratatui")]
 pub mod ratatui;
 
-const UNIFORM_FRACTION_HEIGHT: bool = false;
+const UNIFORM_FRACTION_HEIGHT: bool = true;
 const COMPACT_SIMPLE_FRACTIONAL_EXPONENTS: bool = false;
 
 /// Renders a math expression to plain text lines.
@@ -105,6 +103,7 @@ fn build_registry() -> SymbolRegistry {
     r.register("sqrt", SqrtGlyph);
     r.register("lim", LimitGlyph);
     r.register("int", IntegralGlyph);
+    r.register("sum", SummationGlyph);
 
     for (cmd, ch) in [
         ("infty", '∞'),
@@ -153,7 +152,6 @@ fn build_registry() -> SymbolRegistry {
         ("supseteq", '⊇'),
         ("cup", '∪'),
         ("cap", '∩'),
-        ("sum", '∑'),
         ("prod", '∏'),
         ("lvert", '|'),
         ("rvert", '|'),

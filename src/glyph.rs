@@ -164,6 +164,98 @@ impl Glyph for SqrtGlyph {
 }
 
 #[derive(Debug)]
+pub struct SummationGlyph;
+impl Glyph for SummationGlyph {
+    fn has_optional(&self) -> bool {
+        true
+    }
+
+    fn has_limits(&self) -> bool {
+        true
+    }
+
+    fn required_args(&self) -> usize {
+        1
+    }
+
+    fn render(
+        &self,
+        args: &[RenderNode],
+        _opts: &[RenderNode],
+        _ctx: &mut RenderCtx,
+    ) -> RenderNode {
+        if args.is_empty() {
+            return RenderNode {
+                width: 4,
+                height: 3,
+                baseline: 1,
+                data: vec!['━', '━', '┓', ' ', '❯', ' ', ' ', ' ', '━', '━', '┛', ' '],
+            };
+        }
+
+        let inner = &args[0];
+        if inner.height <= 2 {
+            let w = inner.width + 4;
+            let mut data = vec![' '; w * 3];
+
+            data[0..3].copy_from_slice(&['━', '━', '┓']);
+            data[w..w + 3].copy_from_slice(&['⟩', ' ', ' ']);
+            data[2 * w..2 * w + 3].copy_from_slice(&['━', '━', '┛']);
+            inner.blit_into(&mut data, w, 4, if inner.height == 1 { 1 } else { 0 });
+
+            return RenderNode {
+                width: w,
+                height: 3,
+                baseline: 1,
+                data,
+            };
+        }
+
+        let h = inner.height;
+        let w_sigma = ((1.5 * h as f32) as usize).max(h / 2 + 2);
+        let w = w_sigma + 1 + inner.width; // 1 space padding
+        let mut data = vec![' '; w * h];
+
+        // first row
+        data[w_sigma - 1] = '┓';
+        for c in data.iter_mut().take(w_sigma - 1) {
+            *c = '━';
+        }
+
+        // last row
+        data[w * (h - 1) + w_sigma - 1] = '┛';
+        for c in data.iter_mut().skip(w * (h - 1)).take(w_sigma - 1) {
+            *c = '━';
+        }
+
+        for r in 1..h - 1 {
+            let row_offset = r * w;
+            let d = r.min(h - 1 - r);
+            let col = d - 1;
+
+            let ch = if !h.is_multiple_of(2) && r == h / 2 {
+                '⟩'
+            } else if r < h / 2 {
+                '╲'
+            } else {
+                '╱'
+            };
+
+            data[row_offset + col] = ch;
+        }
+
+        inner.blit_into(&mut data, w, w_sigma + 1, 0);
+
+        RenderNode {
+            width: w,
+            height: h,
+            baseline: inner.baseline,
+            data,
+        }
+    }
+}
+
+#[derive(Debug)]
 pub struct IntegralGlyph;
 
 impl Glyph for IntegralGlyph {
