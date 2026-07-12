@@ -334,6 +334,7 @@ impl RenderNode {
             ('(', ')') => ('⎛', '⎞', '⎝', '⎠', '⎜', '⎟'),
             ('[', ']') => ('⎡', '⎤', '⎣', '⎦', '⎢', '⎥'),
             ('{', '}') => ('⎧', '⎫', '⎩', '⎭', '⎪', '⎪'),
+            ('|', '|') => ('⎪', '⎪', '⎪', '⎪', '⎪', '⎪'),
 
             _ if fill => (left, right, left, right, left, right),
             _ => (left, right, left, right, '│', '│'),
@@ -410,25 +411,6 @@ impl RenderNode {
             width: w,
             height: h,
             baseline,
-            buffer,
-        }
-    }
-
-    pub fn abs(inner: &Self) -> Self {
-        let h = inner.height;
-        let w = inner.width + 2;
-        let mut buffer = RenderBuffer::new(w, h);
-
-        inner.blit_into(&mut buffer, w, 1, 0);
-
-        for y in 0..h {
-            buffer[y * w] = '│';
-            buffer[y * w + w - 1] = '│';
-        }
-        Self {
-            width: w,
-            height: h,
-            baseline: inner.baseline,
             buffer,
         }
     }

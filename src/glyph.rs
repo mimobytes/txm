@@ -317,16 +317,25 @@ impl Glyph for IntegralGlyph {
         &self,
         args: &[RenderNode],
         _opts: &[RenderNode],
-        _ctx: &mut RenderCtx,
+        #[allow(unused)] ctx: &mut RenderCtx,
     ) -> RenderNode {
+        #[cfg(feature = "fancy")]
+        let current_style = ctx.current_style;
+
         // Render a fixed-length integral symbol
         if args.is_empty() {
-            RenderNode {
+            #[allow(unused_mut)]
+            let mut n = RenderNode {
                 width: 2, // symbol + space
                 height: 3,
                 baseline: 1,
                 buffer: vec!['⎛', ' ', '⎜', ' ', '⎠', ' '].into(),
-            }
+            };
+
+            #[cfg(feature = "fancy")]
+            n.apply_style(current_style);
+
+            n
         } else {
             // no stretching required
             if args[0].height <= 3 {
@@ -459,7 +468,7 @@ impl Glyph for AbsGlyph {
         _opts: &[RenderNode],
         _ctx: &mut RenderCtx,
     ) -> RenderNode {
-        RenderNode::abs(&args[0])
+        RenderNode::stretchy_delim(&args[0], '|', '|', false)
     }
 }
 

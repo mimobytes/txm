@@ -46,17 +46,6 @@ pub fn render(input: &str) -> Result<String, ParseError> {
         layout.write_ansi_boxed(&mut s).unwrap();
         s
     })
-
-    // #[allow(clippy::redundant_closure_call)]
-    // Ok(cfg_select! {
-    //     feature = "fancy" => || {
-    //         let mut s = String::new();
-    //         layout.write_ansi_boxed(&mut s)?;
-    //         s
-    //     },
-    //
-    //     _ => || layout.to_string()
-    // }())
 }
 
 fn registry() -> &'static SymbolRegistry {
