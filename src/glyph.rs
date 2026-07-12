@@ -8,11 +8,25 @@ use std::fmt::Debug;
 #[cfg(feature = "fancy")]
 use crate::style::Style;
 
-#[derive(Debug, Default, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct RenderCtx {
     pub depth: usize,
     #[cfg(feature = "fancy")]
     pub current_style: Style,
+    #[cfg(feature = "fancy")]
+    pub style_stack: Vec<Style>,
+}
+
+impl Default for RenderCtx {
+    fn default() -> Self {
+        Self {
+            depth: 0,
+            #[cfg(feature = "fancy")]
+            current_style: Style::new(),
+            #[cfg(feature = "fancy")]
+            style_stack: Vec::new(),
+        }
+    }
 }
 
 pub trait Glyph: Debug + Send + Sync {
@@ -513,18 +527,91 @@ impl Glyph for TextColorGlyph {
         ctx: &mut RenderCtx,
         eval: &mut dyn FnMut(&Expr, &mut RenderCtx) -> Result<RenderNode, ParseError>,
     ) -> Result<RenderNode, ParseError> {
-        let color_str = if let Expr::Ident(c) = &args[0] {
-            c.as_str()
-        } else {
-            panic!("what")
+        let color_str = match args.first() {
+            Some(Expr::Ident(c)) => c.as_str(),
+            _ => return Err(ParseError("expected a color name".into())),
         };
 
-        let prev_style = ctx.current_style;
-        ctx.current_style = ctx.current_style.fg(crate::style::parse_color(color_str)?);
+        let color = crate::style::parse_color(color_str).map_err(|err| ParseError(err.to_string()))?;
+        if args.len() == 1 {
+            apply_declaration_style(ctx, |style| style.fg(color));
+            return Ok(RenderNode::new(0, 0, 0));
+        }
 
-        let result = eval(&args[1], ctx);
-
-        ctx.current_style = prev_style;
-        result
+        render_with_scoped_style(ctx, |style| style.fg(color), eval, &args[1])
     }
+}
+
+#[cfg(feature = "fancy")]
+#[derive(Debug)]
+pub struct StyleGlyph(pub fn(Style) -> Style);
+
+#[cfg(feature = "fancy")]
+impl Glyph for StyleGlyph {
+    fn required_args(&self) -> usize {
+        1
+    }
+
+    fn render_macro(
+        &self,
+        args: &[Expr],
+        _opts: &[Expr],
+        ctx: &mut RenderCtx,
+        eval: &mut dyn FnMut(&Expr, &mut RenderCtx) -> Result<RenderNode, ParseError>,
+    ) -> Result<RenderNode, ParseError> {
+        if args.is_empty() {
+            apply_declaration_style(ctx, self.0);
+            return Ok(RenderNode::new(0, 0, 0));
+        }
+
+        render_with_scoped_style(ctx, |style| (self.0)(style), eval, &args[0])
+    }
+}
+
+#[cfg(feature = "fancy")]
+#[derive(Debug)]
+pub struct ResetStyleGlyph;
+
+#[cfg(feature = "fancy")]
+impl Glyph for ResetStyleGlyph {
+    fn render_macro(
+        &self,
+        _args: &[Expr],
+        _opts: &[Expr],
+        ctx: &mut RenderCtx,
+        _eval: &mut dyn FnMut(&Expr, &mut RenderCtx) -> Result<RenderNode, ParseError>,
+    ) -> Result<RenderNode, ParseError> {
+        if let Some(style) = ctx.style_stack.pop() {
+            ctx.current_style = style;
+        } else {
+            ctx.current_style = Style::new();
+        }
+        Ok(RenderNode::new(0, 0, 0))
+    }
+}
+
+#[cfg(feature = "fancy")]
+fn apply_declaration_style<F>(ctx: &mut RenderCtx, style_fn: F)
+where
+    F: FnOnce(Style) -> Style,
+{
+    ctx.style_stack.push(ctx.current_style);
+    ctx.current_style = style_fn(ctx.current_style);
+}
+
+#[cfg(feature = "fancy")]
+fn render_with_scoped_style<F>(
+    ctx: &mut RenderCtx,
+    style_fn: F,
+    eval: &mut dyn FnMut(&Expr, &mut RenderCtx) -> Result<RenderNode, ParseError>,
+    expr: &Expr,
+) -> Result<RenderNode, ParseError>
+where
+    F: FnOnce(Style) -> Style,
+{
+    let prev_style = ctx.current_style;
+    ctx.current_style = style_fn(prev_style);
+    let result = eval(expr, ctx);
+    ctx.current_style = prev_style;
+    result
 }

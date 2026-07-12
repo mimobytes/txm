@@ -3,6 +3,9 @@ use crate::parser::Parser;
 use crate::render::render as render_expr;
 use crate::token::tokenize;
 
+#[cfg(feature = "fancy")]
+use crate::style::Style;
+
 use std::sync::OnceLock;
 
 mod ast;
@@ -116,7 +119,19 @@ fn build_registry() -> SymbolRegistry {
     r.register("sum", SummationGlyph);
 
     #[cfg(feature = "fancy")]
-    r.register("color", TextColorGlyph);
+    {
+        r.register("color", TextColorGlyph);
+        r.register("textcolor", TextColorGlyph);
+        r.register("textbf", StyleGlyph(|style| style.bold()));
+        r.register("bfseries", StyleGlyph(|style| style.bold()));
+        r.register("textit", StyleGlyph(|style| style.italic()));
+        r.register("emph", StyleGlyph(|style| style.italic()));
+        r.register("itshape", StyleGlyph(|style| style.italic()));
+        r.register("underline", StyleGlyph(|style| style.underline()));
+        r.register("textnormal", StyleGlyph(|_| Style::new()));
+        r.register("normalfont", StyleGlyph(|_| Style::new()));
+        r.register("resetstyle", ResetStyleGlyph);
+    }
 
     for (cmd, ch) in [
         ("infty", '∞'),

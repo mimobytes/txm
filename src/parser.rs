@@ -87,6 +87,24 @@ impl<'a> Parser<'a> {
                 name.push_str(segment);
                 last_end = Some(span.end);
                 self.advance();
+            } else if let Some(Token::ColorHex(segment)) = self.peek() {
+                let span = self
+                    .current_span()
+                    .ok_or_else(|| ParseError("unexpected end of input".to_owned()))?;
+
+                if let Some(prev_end) = last_end
+                    && prev_end != span.start
+                {
+                    return Err(ParseError::at(
+                        "unexpected whitespace",
+                        span.clone(),
+                        self.input,
+                    ));
+                }
+
+                name.push_str(segment);
+                last_end = Some(span.end);
+                self.advance();
             } else if self.peek() == Some(&deliminted_by) {
                 break;
             } else {
@@ -503,7 +521,7 @@ impl<'a> Parser<'a> {
             // that in Glyph trait?
 
             #[cfg(feature = "fancy")]
-            if name == "color" {
+            if matches!(name, "color" | "textcolor") {
                 self.expect(Token::LBrace)?;
                 let color_name = self.parse_continuous_string(Token::RBrace)?;
                 self.advance(); // eat RBrace

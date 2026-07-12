@@ -62,6 +62,9 @@ pub enum Token<'a> {
     #[regex(r"\\[^a-zA-Z]", |lex| &lex.slice()[1..])]
     Escape(&'a str),
 
+    #[regex(r"#[0-9a-fA-F]{3,8}")]
+    ColorHex(&'a str),
+
     #[regex(r"[0-9]+")]
     Number(&'a str),
 
