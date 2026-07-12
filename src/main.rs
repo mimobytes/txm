@@ -33,8 +33,8 @@ fn main() {
             desc: "Render without the decorative box border",
         },
         Flag {
-            name: "--file",
-            desc: "Render specified file",
+            name: "--file <FILE>",
+            desc: "Render specified file (- for stdin)",
         },
     ];
 
@@ -56,43 +56,45 @@ fn main() {
                 std::process::exit(1);
             }
         },
-        Err(msg) if msg == "missing expression" => {
-            print!("{}", help(&program, &flags));
-        }
+        Err(msg) if msg == "missing expression" => print!("{}", help(&program, &flags)),
         Err(msg) => {
             eprintln!("error: {msg}");
-            eprintln!("{}", help(&program, &flags));
+            eprintln!("\nFor more information, try '--help'.");
             process::exit(2);
         }
     }
 }
 
 fn parse_args() -> Result<Cli, String> {
-    let args = env::args().skip(1);
+    let mut args = env::args().skip(1);
     let mut unboxed = false;
-    let mut file = false;
     let mut expression: Option<String> = None;
 
-    for arg in args {
+    while let Some(arg) = args.next() {
         match arg.as_str() {
             "--help" => return Ok(Cli::Help),
             "--version" => return Ok(Cli::Version),
             "--unboxed" => unboxed = true,
-            "--file" => file = true,
-            s if s.starts_with("--") => return Err(format!("unknown flag '{s}'")),
-            s if file => {
-                let s = if s == "-" { "/dev/stdin" } else { s };
-                let file_output = fs::read_to_string(s);
-                if let Ok(file_contents) = file_output {
-                    if expression.replace(file_contents.to_string()).is_some() {
-                        return Err(format!("unexpected extra argument '{s}'"));
-                    }
-                } else if let Err(error) = file_output {
-                    return Err(format!("unable to open file '{s}': {error}"));
+            "--file" => {
+                // grab the next token for the file path
+                let path_arg = args
+                    .next()
+                    .ok_or_else(|| "missing file path after '--file'".to_string())?;
+
+                let path = if path_arg == "-" {
+                    "/dev/stdin"
                 } else {
-                    return Err(concat!("unexpected error at ", file!(), "@", line!()).into());
+                    &path_arg
+                };
+
+                let contents = fs::read_to_string(path)
+                    .map_err(|err| format!("unable to open file '{path_arg}': {err}"))?;
+
+                if expression.replace(contents).is_some() {
+                    return Err(format!("unexpected extra argument '{path_arg}'"));
                 }
             }
+            s if s.starts_with("--") => return Err(format!("unknown flag '{s}'")),
             s => {
                 if expression.replace(s.to_string()).is_some() {
                     return Err(format!("unexpected extra argument '{s}'"));
