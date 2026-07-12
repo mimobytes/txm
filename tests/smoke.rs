@@ -153,3 +153,13 @@ fn stretchy_brackets_use_side_correct_extensions() {
         lines[1]
     );
 }
+
+#[test]
+fn pipe_delimiters_render_like_abs() {
+    assert_eq!(
+        txm::render("|x|").unwrap(),
+        txm::render(r"\abs{x}").unwrap()
+    );
+
+    assert_eq!(txm::render("|x|").unwrap(), "│x│\n");
+}
